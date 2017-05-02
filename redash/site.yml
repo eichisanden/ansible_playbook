@@ -1,0 +1,66 @@
+---
+# Re:dash playbook
+# 
+- hosts: targets
+  user: vagrant
+  become: yes
+  tasks:
+    - name: install docker
+      yum: name=docker state=latest
+
+    - name: systemctl enable docker
+      systemd:
+        name: docker.service
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+
+    - name: install epel
+      yum:
+        name: epel-release
+        state: present
+
+    # Failed to import docker-py - No module named requests.exceptions が出たので追加
+    # https://github.com/ansible/ansible-modules-core/issues/4246
+    - name: install pip
+      yum:
+        name: python-pip
+        state: present
+
+    - name: install docker-py
+      pip:
+        name: docker-py
+        state: present
+
+    - name: docker pull postgres
+      docker_image:
+        name: postgres:9.5.6-alpine
+  
+    - name: docker pull redis 
+      docker_image:
+        name: redis:3.0-alpine
+  
+    - name: docker pull nginx 
+      docker_image:
+        name: redash/nginx:latest
+  
+    - name: docker pull redash 
+      docker_image:
+        name: redash/redash:latest
+    
+    - name: install docker-compose
+      get_url: url="https://github.com/docker/compose/releases/download/1.13.0-rc1/docker-compose-Linux-x86_64" dest=/usr/local/bin/docker-compose
+
+    - name: chmod +X docker-compose
+      file: path=/usr/local/bin/docker-compose mode=0744
+
+    - name: download docker-compose.production.yml
+      get_url: url="https://raw.githubusercontent.com/getredash/redash/master/docker-compose.production.yml" dest=/root
+
+    - name: setup database
+      command: /usr/local/bin/docker-compose -f /root/docker-compose.production.yml run --rm server create_db
+
+    - name: start redash
+      command: /usr/local/bin/docker-compose -f /root/docker-compose.production.yml up
+
+... 
